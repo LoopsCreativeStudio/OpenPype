@@ -41,7 +41,12 @@ class ShowInKitsu(LauncherAction):
 
         asset_zou_data = None
         task_zou_id = None
+        asset_zou_name = None
+        asset_zou_id = None
+        asset_zou_type = 'Assets'
+        zou_sub_type = ['AssetType','Sequence']
         if asset_name:
+            asset_zou_name = asset_name
             asset_fields = ["data.zou.id", "data.zou.type"]
             if task_name:
                 asset_fields.append(f"data.tasks.{task_name}.zou.id")
@@ -51,10 +56,14 @@ class ShowInKitsu(LauncherAction):
                                       fields=asset_fields)
 
             asset_zou_data = asset["data"].get("zou")
-            if not asset_zou_data:
-                raise RuntimeError(
-                    f"No zou asset data for asset: {asset_name}"
-                )
+
+            if asset_zou_data:
+                asset_zou_type = asset_zou_data["type"]
+                if not asset_zou_type in zou_sub_type:
+                    asset_zou_id = asset_zou_data["id"]
+            else:
+                asset_zou_type = asset_name
+                
 
             if task_name:
                 task_data = asset["data"]["tasks"][task_name]
@@ -62,11 +71,12 @@ class ShowInKitsu(LauncherAction):
                 if not task_zou_data:
                     self.log.debug(f"No zou task data for task: {task_name}")
                 task_zou_id = task_zou_data["id"]
-
+ 
         # Define URL
         url = self.get_url(project_id=project_zou_id,
-                           asset_id=asset_zou_data["id"],
-                           asset_type=asset_zou_data["type"],
+                           asset_name=asset_zou_name,
+                           asset_id=asset_zou_id,
+                           asset_type=asset_zou_type,
                            task_id=task_zou_id)
 
         # Open URL in webbrowser
@@ -77,10 +87,13 @@ class ShowInKitsu(LauncherAction):
 
     def get_url(self,
                 project_id,
+                asset_name=None,
                 asset_id=None,
                 asset_type=None,
                 task_id=None):
 
+        shots_url = ['Shots','Sequence','Shot']
+        sub_type = ['AssetType','Sequence']
         kitsu_module = self.get_kitsu_module()
 
         # Get kitsu url with /api stripped
@@ -89,7 +102,11 @@ class ShowInKitsu(LauncherAction):
             kitsu_url = kitsu_url[:-len("/api")]
 
         sub_url = f"/productions/{project_id}"
-        asset_type_url = "assets" if asset_type == "Asset" else "shots"
+        asset_type_url = "Assets"
+        
+        # Add redirection url for shots_url list
+        if asset_type in shots_url:
+            asset_type_url = 'Shots'
 
         if task_id:
             # Go to task page
@@ -106,7 +123,9 @@ class ShowInKitsu(LauncherAction):
             # Go to project page
             # Project page must end with a view
             # /productions/{project-id}/assets/
-            # todo: maybe there's a better page than assets to go to?
-            sub_url += "/assets"
+            # Add search method if is a sub_type
+            sub_url += f"/{asset_type_url}"
+            if asset_type in sub_type:
+                sub_url += f'?search={asset_name}'
 
         return f"{kitsu_url}{sub_url}"
